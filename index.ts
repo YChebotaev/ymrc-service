@@ -1,18 +1,13 @@
 import fastify from 'fastify'
 import cors from '@fastify/cors'
-import { produce } from 'immer'
-import { PlayerStateUpdate, PlayerCommand } from 'knex/types/tables'
+import { PlayerCommand, PlayerState } from 'knex/types/tables'
 import {
-  createMockState,
   createCommand,
   getCommandsSince,
-  createStateUpdate,
-  getAllStateUpdates,
+  getStateByPincode,
+  updateState,
+  createState,
 } from './data'
-
-class Commands {
-  getSince(since: Date) { }
-}
 
 const service = fastify()
 
@@ -23,38 +18,9 @@ service.get<{
     pincode: string
   }
 }>('/players/:pincode/current_state', async ({ params: { pincode } }) => {
-  const updates = await getAllStateUpdates(pincode)
+  const currentState = await getStateByPincode(pincode)
 
-  return updates.reduce(
-    (finalState, currentUpdate) => produce(finalState, draft => {
-      Reflect.deleteProperty(draft, 'id')
-
-      if (currentUpdate.created_at != null) {
-        Reflect.set(draft, 'created_at', currentUpdate.created_at)
-      }
-
-      if (currentUpdate.next_name != null) {
-        Reflect.set(draft, 'next_name', currentUpdate.next_name)
-      }
-
-      if (currentUpdate.curr_name != null) {
-        Reflect.set(draft, 'curr_name', currentUpdate.curr_name)
-      }
-
-      if (currentUpdate.prev_name != null) {
-        Reflect.set(draft, 'prev_name', currentUpdate.prev_name)
-      }
-
-      if (currentUpdate.curr_volume != null) {
-        Reflect.set(draft, 'curr_volume', currentUpdate.curr_volume)
-      }
-
-      if (currentUpdate.now_playing != null) {
-        Reflect.set(draft, 'now_playing', currentUpdate.now_playing)
-      }
-    }),
-    createMockState(pincode)
-  )
+  return currentState
 })
 
 service.post<{
@@ -63,11 +29,25 @@ service.post<{
   },
   Body: string
 }>('/players/:pincode/state_update', async ({ params: { pincode }, body: stateUpdateStr }) => {
-  const stateUpdate: PlayerStateUpdate = typeof stateUpdateStr === 'string'
-    ? JSON.parse(stateUpdateStr)
-    : stateUpdateStr
+  const newStateUpdate: PlayerState = typeof stateUpdateStr === 'string'
+    ? JSON.parse(stateUpdateStr) satisfies PlayerState
+    : stateUpdateStr satisfies PlayerState
+  const prevStateUpdate = await getStateByPincode(pincode)
 
-  await createStateUpdate(pincode, stateUpdate)
+  if (prevStateUpdate) {
+    await updateState(prevStateUpdate.id, {
+      ...newStateUpdate,
+      now_playing: newStateUpdate.now_playing ? 1 : 0,
+      updated_at: new Date()
+    })
+  } else {
+    await createState({
+      ...newStateUpdate,
+      pincode,
+      now_playing: newStateUpdate.now_playing ? 1 : 0,
+      created_at: new Date()
+    })
+  }
 })
 
 service.get<{

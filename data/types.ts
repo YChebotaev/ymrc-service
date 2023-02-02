@@ -11,17 +11,6 @@ declare module 'knex/types/tables' {
     updated_at: Date | null
   }
 
-  type PlayerStateUpdate = {
-    id: number
-    pincode: string,
-    curr_name: string | null,
-    next_name: string | null,
-    prev_name: string | null,
-    curr_volume: number | null,
-    now_playing: boolean | null,
-    created_at: Date
-  }
-
   type PlayerCommand<Params extends any[] = any[]> = {
     id: number
     pincode: string,
@@ -31,7 +20,6 @@ declare module 'knex/types/tables' {
 
   interface Tables {
     player_state: PlayerState
-    player_state_update: PlayerStateUpdate
     player_command: PlayerCommand
   }
 }
